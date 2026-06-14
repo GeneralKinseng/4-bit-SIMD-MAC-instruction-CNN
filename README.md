@@ -82,11 +82,11 @@ riscv64-unknown-elf-g++ \
   -march=rv32im -mabi=ilp32 -O2 -DNDEBUG \
   -DTF_LITE_STATIC_MEMORY -DTF_LITE_MCU_DEBUG_LOG \
   -fno-rtti -fno-exceptions -fno-threadsafe-statics \
-  -Itflite-micro \
-  -Itflite-micro/tensorflow \
-  -Itflite-micro/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include \
-  -Itflite-micro/tensorflow/lite/micro/tools/make/downloads/gemmlowp \
-  -Itflite-micro/tensorflow/lite/micro/tools/make/downloads/ruy \
+  -I./tflite-micro \
+  -I./tflite-micro/tensorflow \
+  -I./tflite-micro/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include \
+  -I./tflite-micro/tensorflow/lite/micro/tools/make/downloads/gemmlowp \
+  -I./tflite-micro/tensorflow/lite/micro/tools/make/downloads/ruy \
   src/main.cc \
   src/model_full.cc \
   tflite-micro/gen/riscv32_generic_rv32im_default_gcc/lib/libtensorflow-microlite.a \
@@ -164,7 +164,7 @@ Checkpoint 5: Inference Complete!
 
 ## Extract Baseline Metrics
 
-If `scripts/parse_gem5_stats.py` is available, generate a CSV summary:
+You can generate a CSV summary for the metrics via `scripts/parse_gem5_stats.py`:
 
 ```bash
 python3 scripts/parse_gem5_stats.py out/m5out_baseline/stats.txt \
@@ -188,15 +188,3 @@ Key metrics for the thesis baseline include:
 - L1 instruction/data cache miss rates
 - L2 cache miss rate
 
-## Notes on gem5 Warnings
-
-Some gem5 warnings are expected and do not indicate a failed simulation:
-
-- Base-10 memory/cache sizes being converted to `MiB` or `KiB`
-- `CustomResource` deprecation warning
-- Missing `pydot` for dot-file generation
-- DRAM device capacity not matching the assigned address range
-- Unknown operating system in syscall emulation mode
-- Legacy statistics warning
-
-These warnings can be cleaned up later, but they do not invalidate the baseline if `stats.txt` is generated and the program reaches `Checkpoint 5`.
