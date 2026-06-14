@@ -1,0 +1,39 @@
+gem5 Simulator System.  https://www.gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 version 25.1.0.1
+gem5 compiled May  3 2026 15:57:49
+gem5 started Jun 15 2026 00:15:31
+gem5 executing on kinseng-All-Series, pid 31576
+command line: /home/kinseng/gem5/build/ALL/gem5.opt --outdir=out/m5out_baseline --redirect-stdout src/run_inference.py --binary out/baseline_inference.elf
+
+warn: Base 10 memory/cache size 512MB will be cast to base 2 size 512MiB.
+warn: The `CustomResource` class is deprecated. Please use an `AbstractResource` subclass instead.
+Starting gem5 RV32 simulation...
+warn: Base 10 memory/cache size 256kB will be cast to base 2 size 256KiB.
+warn: Base 10 memory/cache size 32kB will be cast to base 2 size 32KiB.
+warn: Base 10 memory/cache size 32kB will be cast to base 2 size 32KiB.
+Global frequency set at 1000000000000 ticks per second
+warn: No dot file generated. Please install pydot to generate the dot file and pdf.
+src/mem/dram_interface.cc:690: warn: DRAM device capacity (8192 Mbytes) does not match the address range assigned (512 Mbytes)
+src/arch/riscv/isa.cc:321: info: RVV enabled, VLEN = 256 bits, ELEN = 64 bits
+src/arch/riscv/linux/se_workload.cc:73: warn: Unknown operating system; assuming Linux.
+src/base/statistics.hh:279: warn: One of the stats is a legacy stat. Legacy stat is a stat that does not belong to any statistics::Group. Legacy stat is deprecated.
+board.remote_gdb: Listening for connections on port 7000
+--- System Booting ---
+Checkpoint 1: Model loaded successfully.
+Checkpoint 2: Resolver and Interpreter created.
+Input: type=1 bytes=4096 dims=4
+Checkpoint 3: Tensors allocated safely.
+Checkpoint 4: Starting RISC-V Baseline Inference...
+Class 0 score(x1000)=19
+Class 1 score(x1000)=39
+Class 2 score(x1000)=97
+Class 3 score(x1000)=246
+Class 4 score(x1000)=11
+Class 5 score(x1000)=292
+Class 6 score(x1000)=19
+Class 7 score(x1000)=15
+Class 8 score(x1000)=203
+Class 9 score(x1000)=46
+Checkpoint 5: Inference Complete!
