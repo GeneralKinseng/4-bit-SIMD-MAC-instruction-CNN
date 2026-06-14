@@ -1,3 +1,6 @@
+import argparse
+from pathlib import Path
+
 from gem5.components.boards.simple_board import SimpleBoard
 from gem5.components.memory.single_channel import SingleChannelDDR3_1600
 from gem5.components.processors.simple_processor import SimpleProcessor
@@ -9,11 +12,11 @@ from gem5.simulate.simulator import Simulator
 
 # 1. Set up a realistic Cache Hierarchy
 cache_hierarchy = PrivateL1PrivateL2CacheHierarchy(
-    l1d_size="32kB", l1i_size="32kB", l2_size="256kB"
+    l1d_size="32KiB", l1i_size="32KiB", l2_size="256KiB"
 )
 
 # 2. Set up the Memory
-memory = SingleChannelDDR3_1600(size="512MB")
+memory = SingleChannelDDR3_1600(size="512MiB")
 
 # 3. Set up the Processor (Timing CPU for realistic cycle counts)
 processor = SimpleProcessor(
@@ -35,7 +38,20 @@ board = SimpleBoard(
 )
 
 # 5. Set the Workload (Your 32-bit executable)
-board.set_se_binary_workload(CustomResource("baseline_inference.elf"))
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--binary",
+    default="out/baseline_inference.elf",
+    help="Path to the RISC-V ELF binary to run"
+)
+args = parser.parse_args()
+
+binary_path = Path(args.binary).resolve()
+
+if not binary_path.exists():
+    raise FileNotFoundError(f"Binary not found: {binary_path}")
+
+board.set_se_binary_workload(CustomResource(str(binary_path)))
 
 # 6. Run the Simulation
 simulator = Simulator(board=board)

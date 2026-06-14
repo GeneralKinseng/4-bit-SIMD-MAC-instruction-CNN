@@ -166,8 +166,21 @@ def export_and_reorganize_flatbuffer(qat_model):
     Serializes to FlatBuffer, and extracts weights to an external C-array.
     """
     print("\nConverting model to TFLite FlatBuffer...")
-    converter = tf.lite.TFLiteConverter.from_keras_model(qat_model)
+    #converter = tf.lite.TFLiteConverter.from_keras_model(qat_model)
+    #converter.optimizations = [tf.lite.Optimize.DEFAULT]
+
+    # 1. Force a strict static batch size of 1 
+    # (Note: adjust the 32, 32, 1 if your dataset uses different image dimensions)
+    static_input = tf.keras.layers.Input(batch_shape=(1, 32, 32, 1))
+    static_model = tf.keras.models.Model(inputs=static_input, outputs=qat_model(static_input))
+
+    # 2. Pass the NEW static model to the converter
+    converter = tf.lite.TFLiteConverter.from_keras_model(static_model)
+
+    # Keep your existing optimization settings here
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    # ... any representative dataset generators you have ...
+
     tflite_model = converter.convert()
     
     tflite_path = "model_full.tflite"

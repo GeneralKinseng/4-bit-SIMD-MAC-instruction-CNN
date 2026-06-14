@@ -1,44 +1,38 @@
 Loading and analyzing TFLite model: model_full.tflite
 
-Layer Tensor: serving_default_conv2d_input:0
-  - Stored Data Type: <class 'numpy.float32'>
-  - Quantization Info (Scale, Zero Point): (0.0, 0)
-  - Empirical Range: [0.0, 0.0]
-  => WARNING: Precision bounds exceed INT4 constraints.
-
-Layer Tensor: sequential/quant_conv2d_1/Relu;sequential/quant_conv2d_1/BiasAdd;sequential/quant_conv2d_1/Conv2D;sequential/quant_conv2d_1/BiasAdd/ReadVariableOp
+Layer Tensor: model/sequential/quant_conv2d_1/Relu;model/sequential/quant_conv2d_1/BiasAdd;model/sequential/quant_conv2d_1/Conv2D;model/sequential/quant_conv2d_1/BiasAdd/ReadVariableOp
   - Stored Data Type: <class 'numpy.int32'>
   - Quantization Info (Scale, Zero Point): (0.0, 0)
-  - Empirical Range: [-518, 2367]
+  - Empirical Range: [-1581, 3029]
   => WARNING: Precision bounds exceed INT4 constraints.
 
-Layer Tensor: sequential/quant_conv2d/Relu;sequential/quant_conv2d/BiasAdd;sequential/quant_conv2d/Conv2D;sequential/quant_conv2d/BiasAdd/ReadVariableOp
+Layer Tensor: model/sequential/quant_conv2d/Relu;model/sequential/quant_conv2d/BiasAdd;model/sequential/quant_conv2d/Conv2D;model/sequential/quant_conv2d/BiasAdd/ReadVariableOp
   - Stored Data Type: <class 'numpy.int32'>
   - Quantization Info (Scale, Zero Point): (0.0, 0)
-  - Empirical Range: [-2071, 6163]
+  - Empirical Range: [-4282, 4589]
   => WARNING: Precision bounds exceed INT4 constraints.
 
-Layer Tensor: sequential/quant_conv2d/Conv2D;sequential/quant_conv2d/LastValueQuant/FakeQuantWithMinMaxVarsPerChannel
+Layer Tensor: model/sequential/quant_conv2d/Conv2D;model/sequential/quant_conv2d/LastValueQuant/FakeQuantWithMinMaxVarsPerChannel
   - Stored Data Type: <class 'numpy.int8'>
   - Quantization Info (Scale, Zero Point): (0.0, 0)
   - Empirical Range: [-127, 127]
   => WARNING: Precision bounds exceed INT4 constraints.
 
-Layer Tensor: sequential/quant_conv2d/Relu;sequential/quant_conv2d/BiasAdd;sequential/quant_conv2d/Conv2D;sequential/quant_conv2d/BiasAdd/ReadVariableOp1
+Layer Tensor: model/sequential/quant_conv2d/Relu;model/sequential/quant_conv2d/BiasAdd;model/sequential/quant_conv2d/Conv2D;model/sequential/quant_conv2d/BiasAdd/ReadVariableOp1
   - Stored Data Type: <class 'numpy.int8'>
-  - Quantization Info (Scale, Zero Point): (0.014320570044219494, -88)
+  - Quantization Info (Scale, Zero Point): (0.012957636266946793, -84)
   - Empirical Range: [0, 0]
   => VERIFIED: Weights are constrained to 4-bit (INT4) precision.
 
-Layer Tensor: sequential/quant_conv2d_1/Conv2D;sequential/quant_conv2d_1/LastValueQuant/FakeQuantWithMinMaxVarsPerChannel
+Layer Tensor: model/sequential/quant_conv2d_1/Conv2D;model/sequential/quant_conv2d_1/LastValueQuant/FakeQuantWithMinMaxVarsPerChannel
   - Stored Data Type: <class 'numpy.int8'>
   - Quantization Info (Scale, Zero Point): (0.0, 0)
   - Empirical Range: [-127, 127]
   => WARNING: Precision bounds exceed INT4 constraints.
 
-Layer Tensor: sequential/quant_conv2d_1/Relu;sequential/quant_conv2d_1/BiasAdd;sequential/quant_conv2d_1/Conv2D;sequential/quant_conv2d_1/BiasAdd/ReadVariableOp1
+Layer Tensor: model/sequential/quant_conv2d_1/Relu;model/sequential/quant_conv2d_1/BiasAdd;model/sequential/quant_conv2d_1/Conv2D;model/sequential/quant_conv2d_1/BiasAdd/ReadVariableOp1
   - Stored Data Type: <class 'numpy.int8'>
-  - Quantization Info (Scale, Zero Point): (0.02690124325454235, -107)
+  - Quantization Info (Scale, Zero Point): (0.02589179389178753, -106)
   - Empirical Range: [0, 0]
   => VERIFIED: Weights are constrained to 4-bit (INT4) precision.
 
