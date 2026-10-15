@@ -210,3 +210,16 @@ All 10 output class logits (`Class 0..9`: `-68, 19, -79, -34, 2, 55, -41, -17, 1
 
 - **Consistent per-call savings (`~103–104.5` cycles):** Across all `56,586` `dot4` calls in LeNet-5, `qvdot4` saves an average of `104.534` cycles per `dot4` call, matching the `103.000` cycles saved per call in the isolated microbenchmark (plus ~`1.5` cycles saved from eliminating `qvdot4_sw` function-call/register-spill overhead in nested loops).
 - **Amortization of outer-loop overhead:** As the number of packed words per neuron increases from `4` (`Conv1`) to `19` (`Conv2`) and `50` (`FC1`), outer-loop bias, ReLU, bit-shift scaling, and 4-bit clamping are amortized over more `dot4` calls, causing the hardware cycle cost per `dot4` to drop from `21.580` (`Conv1`) to `13.974` (`Conv2`) and `12.969` (`FC1`), approaching the `10.000`-cycle microbenchmark floor.
+
+## 8. Waveform References (GTKWave)
+### Software Baseline (`dot4-baseline`)
+Executes 8 loop iterations of shift, sign-extension, multiply, and accumulate instructions (~104 clock cycles) while `qvdot4_en` remains `0
+`:
+![Baseline Start RTL Waveform](images/dot4_base_start.png)
+![Baseline Mult RTL Waveform](images/dot4_base_mult.png)
+
+### Custom Instruction (`dot4-qvdot4`)
+Asserts `qvdot4_en = 1` (`alu_operator_i = 0x7F`) and computes the packed 8-lane signed 4-bit dot product in a single clock cycle:
+
+![qvdot4 Custom Instruction RTL Waveform](images/dot4_custom_simple.png)
+![qvdot4 Data Lanes RTL Waveform](images/dot4_custom_data.png)
