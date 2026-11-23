@@ -1,0 +1,254 @@
+diff --git a/cv32e40p_manifest.flist b/cv32e40p_manifest.flist
+index 5da7f51..9060f86 100644
+--- a/cv32e40p_manifest.flist
++++ b/cv32e40p_manifest.flist
+@@ -48,6 +48,8 @@ ${DESIGN_RTL_DIR}/cv32e40p_int_controller.sv
+ ${DESIGN_RTL_DIR}/cv32e40p_ex_stage.sv
+ ${DESIGN_RTL_DIR}/cv32e40p_alu_div.sv
+ ${DESIGN_RTL_DIR}/cv32e40p_alu.sv
++${DESIGN_RTL_DIR}/cv32e40p_qvdot4.sv
++${DESIGN_RTL_DIR}/cv32e40p_qdot4x4.sv
+ ${DESIGN_RTL_DIR}/cv32e40p_ff_one.sv
+ ${DESIGN_RTL_DIR}/cv32e40p_popcnt.sv
+ ${DESIGN_RTL_DIR}/cv32e40p_apu_disp.sv
+diff --git a/rtl/cv32e40p_decoder.sv b/rtl/cv32e40p_decoder.sv
+index 3b48679..bf7559f 100644
+--- a/rtl/cv32e40p_decoder.sv
++++ b/rtl/cv32e40p_decoder.sv
+@@ -419,8 +419,26 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
+         end
+       end
+ 
+-      OPCODE_LOAD,
+-      OPCODE_LOAD_POST: begin
++      OPCODE_CUSTOM_0: begin
++        if ((instr_rdata_i[14:12] == 3'b000) && (instr_rdata_i[31:25] == 7'b0000000)) begin
++          // qvdot4 rd, rs1, rs2 : 8-lane signed 4-bit dot product
++          regfile_alu_we = 1'b1;
++          rega_used_o    = 1'b1;
++          regb_used_o    = 1'b1;
++          alu_operator_o = ALU_QVDOT4;
++        end else if ((instr_rdata_i[14:12] == 3'b001) && (instr_rdata_i[31:25] == 7'b0000001)) begin
++          // qdot4x4 rd, rs1, rs2 : 4-lane signed 4-bit dot product on rs1[15:0], rs2[15:0]
++          // funct3/funct7 follow RI-MAC Table III C-MUL44 fields.
++          regfile_alu_we = 1'b1;
++          rega_used_o    = 1'b1;
++          regb_used_o    = 1'b1;
++          alu_operator_o = ALU_QDOT4X4;
++        end else begin
++          illegal_insn_o = 1'b1;
++        end
++      end
++
++      OPCODE_LOAD: begin
+         if (PULP_XPULP || (instr_rdata_i[6:0] == OPCODE_LOAD)) begin
+           data_req        = 1'b1;
+           regfile_mem_we  = 1'b1;
+diff --git a/rtl/cv32e40p_ex_stage.sv b/rtl/cv32e40p_ex_stage.sv
+index 6b58a84..461fb30 100644
+--- a/rtl/cv32e40p_ex_stage.sv
++++ b/rtl/cv32e40p_ex_stage.sv
+@@ -153,6 +153,10 @@ module cv32e40p_ex_stage
+ );
+ 
+   logic [31:0] alu_result;
++  logic [31:0] qvdot4_result;
++  logic [31:0] qdot4x4_result;
++  logic        qvdot4_en;
++  logic        qdot4x4_en;
+   logic [31:0] mult_result;
+   logic        alu_cmp_result;
+ 
+@@ -195,7 +199,9 @@ module cv32e40p_ex_stage
+     end else begin
+       regfile_alu_we_fw_o    = regfile_alu_we_i & ~apu_en_i;  // private fpu incomplete?
+       regfile_alu_waddr_fw_o = regfile_alu_waddr_i;
+-      if (alu_en_i) regfile_alu_wdata_fw_o = alu_result;
++      if (alu_en_i)
++        regfile_alu_wdata_fw_o = qvdot4_en  ? qvdot4_result  :
++                                 qdot4x4_en ? qdot4x4_result : alu_result;
+       if (mult_en_i) regfile_alu_wdata_fw_o = mult_result;
+       if (csr_access_i) regfile_alu_wdata_fw_o = csr_rdata_i;
+     end
+@@ -235,6 +241,21 @@ module cv32e40p_ex_stage
+   //                        //
+   ////////////////////////////
+ 
++  assign qvdot4_en  = alu_en_i && (alu_operator_i == ALU_QVDOT4);
++  assign qdot4x4_en = alu_en_i && (alu_operator_i == ALU_QDOT4X4);
++
++  cv32e40p_qvdot4 qvdot4_i (
++      .operand_a_i(alu_operand_a_i),
++      .operand_b_i(alu_operand_b_i),
++      .result_o   (qvdot4_result)
++  );
++
++  cv32e40p_qdot4x4 qdot4x4_i (
++      .operand_a_i(alu_operand_a_i),
++      .operand_b_i(alu_operand_b_i),
++      .result_o   (qdot4x4_result)
++  );
++
+   cv32e40p_alu alu_i (
+       .clk        (clk),
+       .rst_n      (rst_n),
+diff --git a/rtl/cv32e40p_qdot4x4.sv b/rtl/cv32e40p_qdot4x4.sv
+new file mode 100644
+index 0000000..96a933d
+--- /dev/null
++++ b/rtl/cv32e40p_qdot4x4.sv
+@@ -0,0 +1,73 @@
++// Solderpad Hardware License, Version 0.51, see LICENSE for details.
++//
++// Design Name:    RI-MAC-inspired four-lane signed 4-bit dot product (qdot4x4)
++// Language:       SystemVerilog
++//
++// Description:    Independent reimplementation for CV32E40P, inspired by the
++//                 C-MUL44 mode of RI-MAC (Longchar et al., AIMLSystems 2025,
++//                 doi:10.1109/AIMLSYSTEMS67835.2025.11330892). This is NOT the
++//                 authors' RTL.
++//
++//                 result_o = sum_{i=0..3} sext4(a[4i+3:4i]) * sext4(b[4i+3:4i])
++//
++//                 Only operand bits [15:0] are used; bits [31:16] are ignored,
++//                 matching RI-MAC's 16-bit C-MUL44 waveform example (Fig. 7).
++//
++//                 Each signed 4x4 product is composed from four 2x2 partial
++//                 products, following RI-MAC's recursive decomposition:
++//                   A*B = (AH*BH)<<4 + (AH*BL + AL*BH)<<2 + AL*BL
++//                 For signed operands the high halves (AH, BH) are signed and
++//                 the low halves (AL, BL) are unsigned.
++//
++//                 Combinational, single-cycle, no internal state.
++
++module cv32e40p_qdot4x4 (
++    input  logic [31:0] operand_a_i,
++    input  logic [31:0] operand_b_i,
++    output logic [31:0] result_o
++);
++
++  // 2-bit partial product. Each 2-bit operand is sign-extended when its
++  // *_signed flag is set and zero-extended otherwise. Products lie in [-6, 9],
++  // so 6 signed bits are sufficient.
++  function automatic logic signed [5:0] mul2x2(input logic [1:0] x, input logic x_signed,
++                                               input logic [1:0] y, input logic y_signed);
++    logic signed [5:0] xs;
++    logic signed [5:0] ys;
++    // Explicit 6-bit extension so the multiply is evaluated at 6 bits in every tool.
++    xs = $signed({{4{x_signed & x[1]}}, x});
++    ys = $signed({{4{y_signed & y[1]}}, y});
++    return xs * ys;
++  endfunction
++
++  logic signed [ 5:0] pp_hh [3:0];  // signed  AH x signed  BH
++  logic signed [ 5:0] pp_hl [3:0];  // signed  AH x unsigned BL
++  logic signed [ 5:0] pp_lh [3:0];  // unsigned AL x signed  BH
++  logic signed [ 5:0] pp_ll [3:0];  // unsigned AL x unsigned BL
++  logic signed [ 9:0] prod  [3:0];  // signed 4x4 product, range [-56, 64]
++  logic signed [10:0] sum_l1[1:0];
++  logic signed [11:0] sum_l2;       // four-lane sum, range [-224, 256]
++
++  always_comb begin
++    for (int i = 0; i < 4; i++) begin
++      pp_hh[i] = mul2x2(operand_a_i[4*i+2 +: 2], 1'b1, operand_b_i[4*i+2 +: 2], 1'b1);
++      pp_hl[i] = mul2x2(operand_a_i[4*i+2 +: 2], 1'b1, operand_b_i[4*i   +: 2], 1'b0);
++      pp_lh[i] = mul2x2(operand_a_i[4*i   +: 2], 1'b0, operand_b_i[4*i+2 +: 2], 1'b1);
++      pp_ll[i] = mul2x2(operand_a_i[4*i   +: 2], 1'b0, operand_b_i[4*i   +: 2], 1'b0);
++
++      // Shift-and-add composition; all terms explicitly sign-extended to 10 bits.
++      prod[i] = (10'(pp_hh[i]) <<< 4)
++              + ((10'(pp_hl[i]) + 10'(pp_lh[i])) <<< 2)
++              + 10'(pp_ll[i]);
++    end
++
++    // Two-level signed adder tree (10b -> 11b -> 12b)
++    sum_l1[0] = 11'(prod[0]) + 11'(prod[1]);
++    sum_l1[1] = 11'(prod[2]) + 11'(prod[3]);
++    sum_l2    = 12'(sum_l1[0]) + 12'(sum_l1[1]);
++
++    // Final sign extension (12b -> 32b)
++    result_o  = {{20{sum_l2[11]}}, sum_l2};
++  end
++
++endmodule
+diff --git a/rtl/cv32e40p_qvdot4.sv b/rtl/cv32e40p_qvdot4.sv
+new file mode 100644
+index 0000000..e3ae727
+--- /dev/null
++++ b/rtl/cv32e40p_qvdot4.sv
+@@ -0,0 +1,50 @@
++// Copyright 2026 OpenHW Group / Master Research Project
++// Solderpad Hardware License, Version 0.51, see LICENSE for details.
++//
++// Design Name:    Packed Signed 4-bit Dot-Product Functional Unit (qvdot4)
++// Language:       SystemVerilog
++//
++// Description:    Computes the 8-lane signed 4-bit dot product of two
++//                 packed 32-bit operands in a single combinational cycle:
++//                   result_o = sum_{i=0..7} sext4(a[4i+3:4i]) * sext4(b[4i+3:4i])
++
++module cv32e40p_qvdot4 (
++    input  logic [31:0] operand_a_i,
++    input  logic [31:0] operand_b_i,
++    output logic [31:0] result_o
++);
++
++  logic signed [ 7:0] a_sext [7:0];
++  logic signed [ 7:0] b_sext [7:0];
++  logic signed [ 7:0] prod   [7:0];
++  logic signed [ 8:0] sum_l1 [3:0];
++  logic signed [ 9:0] sum_l2 [1:0];
++  logic signed [10:0] sum_l3;
++
++  always_comb begin
++    // 1. Nibble split, sign-extend (4b -> 8b), and 8 parallel signed multiplies
++    for (int i = 0; i < 8; i++) begin
++      a_sext[i] = $signed({{4{operand_a_i[4*i + 3]}}, operand_a_i[4*i +: 4]});
++      b_sext[i] = $signed({{4{operand_b_i[4*i + 3]}}, operand_b_i[4*i +: 4]});
++      prod[i]   = a_sext[i] * b_sext[i];
++    end
++
++    // 2. Three-level signed adder tree (8b -> 9b -> 10b -> 11b)
++    for (int j = 0; j < 4; j++) begin
++      sum_l1[j] = $signed({prod[2*j][7], prod[2*j]}) +
++                  $signed({prod[2*j + 1][7], prod[2*j + 1]});
++    end
++
++    for (int k = 0; k < 2; k++) begin
++      sum_l2[k] = $signed({sum_l1[2*k][8], sum_l1[2*k]}) +
++                  $signed({sum_l1[2*k + 1][8], sum_l1[2*k + 1]});
++    end
++
++    sum_l3   = $signed({sum_l2[0][9], sum_l2[0]}) +
++               $signed({sum_l2[1][9], sum_l2[1]});
++
++    // 3. Final sign extension (11b -> 32b)
++    result_o = {{21{sum_l3[10]}}, sum_l3};
++  end
++
++endmodule
+diff --git a/rtl/include/cv32e40p_pkg.sv b/rtl/include/cv32e40p_pkg.sv
+index 61dce0f..2d0c815 100644
+--- a/rtl/include/cv32e40p_pkg.sv
++++ b/rtl/include/cv32e40p_pkg.sv
+@@ -59,6 +59,7 @@ package cv32e40p_pkg;
+   // parameter OPCODE_CUST1     = 7'h2b
+ 
+   // PULP custom
++  parameter OPCODE_CUSTOM_0 = 7'h0b;  // qvdot4 / qdot4x4 (PULP_XPULP=0 only)
+   parameter OPCODE_LOAD_POST = 7'h0b;
+   parameter OPCODE_STORE_POST = 7'h2b;
+   parameter OPCODE_PULP_OP = 7'h5b;
+@@ -162,7 +163,11 @@ package cv32e40p_pkg;
+     ALU_SHUF  = 7'b0111010,
+     ALU_SHUF2 = 7'b0111011,
+     ALU_PCKLO = 7'b0111000,
+-    ALU_PCKHI = 7'b0111001
++    ALU_PCKHI = 7'b0111001,
++
++    // Custom 4-bit dot-product units (write back through the ALU result port)
++    ALU_QDOT4X4 = 7'b1111110,  // RI-MAC-inspired 4-lane reduction
++    ALU_QVDOT4  = 7'b1111111   // 8-lane reduction
+ 
+   } alu_opcode_e;
+ 

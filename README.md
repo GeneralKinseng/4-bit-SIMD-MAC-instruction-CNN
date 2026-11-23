@@ -8,7 +8,9 @@ Hardware-software co-design of a custom RISC-V instruction (`qvdot4`) that compu
 - `scripts/validate_tflite_reference.py` — Validates the gem5 RV32 LeNet-5 output against a desktop Python TFLite reference run.
 - `src/dot4_baseline.c` — Software baseline microbenchmark for the packed 8-lane signed 4-bit dot product (`qvdot4_sw`).
 - `src/dot4-qvdot4.c` — Hardware-accelerated microbenchmark using the custom `qvdot4` instruction (`.insn r 0x0b, 0, 0, rd, rs1, rs2`).
+- `src/lenet5-qvdot4.c` — Standalone bare-metal 4-bit LeNet-5 CNN benchmark comparing `qvdot4_sw` vs. `qvdot4_hw`.
 - `src/rtl/` — Modified CV32E40P RTL files implementing the `qvdot4` functional unit (`cv32e40p_qvdot4.sv`, `include/cv32e40p_pkg.sv`, `cv32e40p_decoder.sv`, `cv32e40p_ex_stage.sv`, `cv32e40p_manifest.flist`).
+- `src/qdot4x4/` — Independent RI-MAC-inspired 4-lane signed 4-bit dot-product unit (`qdot4x4`), CV32E40P integration patch, Verilator unit testbench, three-way LeNet-5 benchmark (`lenet5-qdot4x4.c`), and dedicated reproduction guide ([`src/qdot4x4/README.md`](src/qdot4x4/README.md)).
 
 All commands below are run from the repository root unless stated otherwise.
 
@@ -223,3 +225,18 @@ Asserts `qvdot4_en = 1` (`alu_operator_i = 0x7F`) and computes the packed 8-lane
 
 ![qvdot4 Custom Instruction RTL Waveform](images/dot4_custom_simple.png)
 ![qvdot4 Data Lanes RTL Waveform](images/dot4_custom_data.png)
+
+## 9. Comparison Against an RI-MAC-Inspired 4-Lane Unit (`qdot4x4`)
+
+To benchmark the 8-lane `qvdot4` unit against a narrower 4-lane design on the same CV32E40P core, [`src/qdot4x4/`](src/qdot4x4/) provides an independent clean-room 4-lane signed 4-bit dot-product unit (`cv32e40p_qdot4x4.sv`) inspired by RI-MAC's C-MUL44 mode ([DOI 10.1109/AIMLSYSTEMS67835.2025.11330892](https://doi.org/10.1109/AIMLSYSTEMS67835.2025.11330892)), along with an integration patch, an 18.8M-check Verilator unit test, and a three-way LeNet-5 benchmark (`SW` vs. `qvdot4` vs. paired `2x qdot4x4`).
+
+All three modes match bit-for-bit across all 10 output logits (`checksum = -588`, `failures = 0`):
+
+| Metric | SW | `qvdot4` (8-lane) | `2x qdot4x4` (4-lane) | `qvdot4` vs. `qdot4x4` |
+| --- | ---: | ---: | ---: | ---: |
+| MAC Layers Subtotal | `6,570,269` | `864,578` (`7.60x`) | `1,108,418` (`5.93x`) | `1.28x` faster |
+| Layer Sum (All 7 Layers) | `6,648,982` | `947,206` (`7.02x`) | `1,197,914` (`5.55x`) | `1.26x` faster |
+| End-to-End Inference (incl. `916k` packing) | `7,565,460` | `1,863,677` (`4.06x`) | `2,114,379` (`3.58x`) | `1.13x` faster |
+| Yosys Primitive Gates (`synth -noabc`) | — | `1,296` (depth `30`) | `643` (depth `31`) | `2.02x` gates |
+
+For full setup, patch, unit-test, and benchmark reproduction steps, see [`src/qdot4x4/README.md`](src/qdot4x4/README.md).
